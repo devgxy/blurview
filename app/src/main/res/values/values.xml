@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <item name="row_index_key" type="id" />
+    <declare-styleable name="FlowLayout">
+        <attr name="itemSpacing" format="dimension" />
+        <attr name="lineSpacing" format="dimension" />
+    </declare-styleable>
+</resources>

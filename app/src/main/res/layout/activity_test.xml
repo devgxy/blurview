@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    tools:ignore="MissingDefaultResource">
+
+    <ImageView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scaleType="centerCrop"
+        android:src="@drawable/wukong"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        tools:ignore="ContentDescription" />
+
+    <androidx.core.widget.NestedScrollView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:clipToPadding="false">
+
+        <net.center.blur.demo.FlowLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            app:itemSpacing="20dp"
+            app:lineSpacing="20dp">
+
+            <com.devgxy.blur.ShapeBlurView
+                android:layout_width="300dp"
+                android:layout_height="250dp"
+                app:blur_border_color="@android:color/holo_red_dark"
+                app:blur_border_width="2dp"
+                app:blur_corner_radius="10dp"
+                app:blur_overlay_color="#40aa66cc"
+                app:blur_radius="20dp" />
+
+            <com.devgxy.blur.ShapeBlurView
+                android:layout_width="300dp"
+                android:layout_height="250dp"
+                app:blur_border_color="@android:color/black"
+                app:blur_border_width="2dp"
+                app:blur_corner_radius="20dp"
+                app:blur_overlay_color="#4033b5e5"
+                app:blur_radius="20dp" />
+
+            <com.devgxy.blur.ShapeBlurView
+                android:layout_width="250dp"
+                android:layout_height="250dp"
+                app:blur_border_width="1dp"
+                app:blur_mode="circle"
+                app:blur_radius="20dp"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="parent" />
+
+            <com.devgxy.blur.ShapeBlurView
+                android:layout_width="250dp"
+                android:layout_height="250dp"
+                app:blur_border_color="@android:color/black"
+                app:blur_border_width="1dp"
+                app:blur_mode="circle"
+                app:blur_radius="20dp"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="parent" />
+
+            <com.devgxy.blur.ShapeBlurView
+                android:layout_width="300dp"
+                android:layout_height="250dp"
+                app:blur_border_color="@color/purple_500"
+                app:blur_border_width="1dp"
+                app:blur_mode="oval"
+                app:blur_radius="20dp" />
+
+            <com.devgxy.blur.ShapeBlurView
+                android:id="@+id/blurview3"
+                android:layout_width="300dp"
+                android:layout_height="250dp"
+                app:blur_border_color="@color/purple_200"
+                app:blur_border_width="3dp"
+                app:blur_radius="20dp" />
+
+            <com.devgxy.blur.ShapeBlurView
+                android:id="@+id/blurview4"
+                android:layout_width="300dp"
+                android:layout_height="250dp"
+                app:blur_border_color="@color/teal_700"
+                app:blur_border_width="1dp"
+                app:blur_corner_radius="50dp"
+                app:blur_radius="20dp" />
+
+            <com.devgxy.blur.ShapeBlurView
+                android:id="@+id/blurview5"
+                android:layout_width="290dp"
+                android:layout_height="250dp"
+                app:blur_border_color="@color/teal_200"
+                app:blur_border_width="1dp"
+                app:blur_corner_radius_bottom_right="50dp"
+                app:blur_corner_radius_top_left="50dp"
+                app:blur_radius="20dp" />
+        </net.center.blur.demo.FlowLayout>
+
+    </androidx.core.widget.NestedScrollView>
+
+</androidx.constraintlayout.widget.ConstraintLayout>
