@@ -1,38 +1,34 @@
-package com.devgxy.blur;
+package com.devgxy.blur
 
-import android.app.Activity;
-import android.content.Context;
-import android.content.ContextWrapper;
-import android.content.res.ColorStateList;
-import android.content.res.TypedArray;
-import android.graphics.Bitmap;
-import android.graphics.BitmapShader;
-import android.graphics.Canvas;
-import android.graphics.Color;
-import android.graphics.Matrix;
-import android.graphics.Paint;
-import android.graphics.Path;
-import android.graphics.Rect;
-import android.graphics.RectF;
-import android.graphics.Shader;
-import android.util.AttributeSet;
-import android.util.Log;
-import android.util.StateSet;
-import android.util.TypedValue;
-import android.view.View;
-import android.view.ViewTreeObserver;
-
-import androidx.annotation.ColorRes;
-import androidx.annotation.DimenRes;
-import androidx.annotation.FloatRange;
-import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
-import androidx.core.content.ContextCompat;
-
-import com.google.android.renderscript.Toolkit;
-
-
-import java.util.Arrays;
+import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
+import android.content.res.ColorStateList
+import android.content.res.TypedArray
+import android.graphics.Bitmap
+import android.graphics.BitmapShader
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.Matrix
+import android.graphics.Paint
+import android.graphics.Path
+import android.graphics.Rect
+import android.graphics.RectF
+import android.graphics.Shader
+import android.util.AttributeSet
+import android.util.Log
+import android.util.StateSet
+import android.util.TypedValue
+import android.view.View
+import android.view.ViewTreeObserver.OnPreDrawListener
+import androidx.annotation.ColorRes
+import androidx.annotation.DimenRes
+import androidx.annotation.FloatRange
+import androidx.core.content.ContextCompat
+import com.google.android.renderscript.Toolkit
+import java.util.Arrays
+import kotlin.math.max
+import kotlin.math.min
 
 /**
  * A realtime blurring overlay (like iOS UIVisualEffectView). Just put it above
@@ -40,202 +36,211 @@ import java.util.Arrays;
  *
  * @noinspection unused
  */
-public class ShapeBlurView extends View {
-    private static final String TAG = "ShapeBlurView";
-    /**
-     * 最大模糊半径
-     */
-    private static final int MAX_BLUR_RADIUS = Toolkit.MAX_BLUR_RADIUS;
-    private Context mContext;
+open class ShapeBlurView @JvmOverloads constructor(
+    context: Context, attrs: AttributeSet?, defStyleAttr: Int,
+    defStyleRes: Int = 0
+) : View(context, attrs, defStyleAttr, defStyleRes) {
+    private var mContext: Context? = null
 
     /**
      * default 4
      */
-    private float mDownSampleFactor;
+    private var mDownSampleFactor = 0f
+
     /**
      * default #000000
      */
-    private int mOverlayColor;
+    private var mOverlayColor = 0
+
     /**
      * 模糊半径，控制模糊程度
      * default 10dp (0 < r <= 25)
      */
-    private float mBlurRadius;
-    /**
-     * 默认边框颜色为白色
-     */
-    public static final int DEFAULT_BORDER_COLOR = Color.WHITE;
+    private var mBlurRadius = 0f
+
     /**
      * 模糊实现类
      */
-    private IBlur mBlurImpl;
+    private lateinit var mBlurImpl: IBlur
+
     /**
      * 原始Bitmap，用于模糊处理
      */
-    private Bitmap mBitmapToBlur;
+    private var mBitmapToBlur: Bitmap? = null
+
     /**
      * 模糊后的Bitmap
      */
-    private Bitmap mBlurredBitmap;
+    private var mBlurredBitmap: Bitmap? = null
+
     /**
      * 绘制原始内容的Canvas，用于生成待模糊的Bitmap
      */
-    private Canvas mBlurringCanvas;
+    private var mBlurringCanvas: Canvas? = null
+
     /**
      * 标志位，指示是否正在渲染
      */
-    private boolean mIsRendering;
+    private var mIsRendering = false
+
     /**
      * 原始Bitmap的Rect
      */
-    private final Rect mRectSrc = new Rect();
+    private val mRectSrc = Rect()
+
     /**
      * 目标绘制区域的RectF
      */
-    private final RectF mRectFDst = new RectF();
+    private val mRectFDst = RectF()
+
     /**
      * Activity的DecorView，用于获取屏幕内容
      */
-    private View mDecorView;
+    private var mDecorView: View? = null
+
     /**
      * 标志位，指示是否与DecorView的根视图不同
      * 如果视图在不同的根视图上（通常意味着在PopupWindow中），
      * 我们需要在onPreDraw()中手动调用invalidate()，否则看不到变化
      */
-    private boolean mDifferentRoot;
+    private var mDifferentRoot = false
     /**
-     * 静态计数器，跟踪渲染次数
+     * 获取模糊形状
+     *
+     * @return 模糊形状 [BlurShape]
      */
-    private static int RENDERING_COUNT;
     /**
      * 模糊模式，默认为矩形模式
      */
-    private int blurShape = BlurShape.SHAPE_RECTANGLE;
+    @get:BlurShape
+    var blurShape: Int = BlurShape.SHAPE_RECTANGLE
+        private set
+
     /**
      * 用于绘制Bitmap的Paint对象
      */
-    private Paint mBitmapPaint;
+    private var mBitmapPaint: Paint? = null
 
 
-    /**
-     * 默认圆角半径为0
-     */
-    private static final float DEFAULT_RADIUS = 0f;
     /**
      * 存储四个角的圆角半径
      */
-    private final float[] mCornerRadii =
-        new float[] {DEFAULT_RADIUS, DEFAULT_RADIUS, DEFAULT_RADIUS, DEFAULT_RADIUS};
+    private val mCornerRadii =
+        floatArrayOf(DEFAULT_RADIUS, DEFAULT_RADIUS, DEFAULT_RADIUS, DEFAULT_RADIUS)
+
     /**
      * 用于绘制圆角路径的Path
      */
-    private final Path cornerPath = new Path();
+    private val cornerPath = Path()
+
     /**
      * 用于存储圆角半径的数组，供绘制使用
      */
-    private float[] cornerRadius;
+    private var cornerRadius: FloatArray? = null
 
 
-    /**
-     * 默认边框宽度为0
-     */
-    private static final float DEFAULT_BORDER_WIDTH = 0f;
     /**
      * 用于绘制边框的RectF
      */
-    private final RectF mBorderRect = new RectF();
+    private val mBorderRect = RectF()
+
     /**
      * 用于绘制边框的Paint对象
      */
-    private Paint mBorderPaint;
+    private var mBorderPaint: Paint? = null
+    /**
+     * 获取边框宽度
+     *
+     * @return 边框宽度
+     */
     /**
      * 边框宽度
      */
-    private float mBorderW = 0;
+    private var borderWidth: Float = 0f
+    /**
+     * 获取边框颜色
+     *
+     * @return 边框颜色
+     */
     /**
      * 边框颜色
      */
-    private ColorStateList mBorderColor = ColorStateList.valueOf(DEFAULT_BORDER_COLOR);
+    private var borderColor: ColorStateList = ColorStateList.valueOf(DEFAULT_BORDER_COLOR)
+
     /**
      * 用于Bitmap变换的Matrix
      */
-    private Matrix matrix;
+    private var matrix: Matrix? = null
+
     /**
      * Bitmap着色器，用于绘制模糊效果
      */
-    private BitmapShader shader;
+    private var shader: BitmapShader? = null
 
-    public ShapeBlurView(Context context) {
-        this(context, null);
-    }
+    @JvmOverloads
+    constructor(context: Context, attrs: AttributeSet? = null) : this(context, attrs, 0)
 
-    public ShapeBlurView(Context context, AttributeSet attrs) {
-        this(context, attrs, 0);
-    }
-
-    public ShapeBlurView(Context context, @Nullable AttributeSet attrs, int defStyleAttr) {
-        this(context, attrs, defStyleAttr, 0);
-    }
-
-    public ShapeBlurView(Context context, @Nullable AttributeSet attrs, int defStyleAttr,
-                         int defStyleRes) {
-        super(context, attrs, defStyleAttr, defStyleRes);
-        init(context, attrs);
-    }
-
-    void init(Context context, AttributeSet attrs) {
-        mContext = context;
+    private fun init(context: Context, attrs: AttributeSet?) {
+        mContext = context
         // provide your own by override getBlurImpl()
-        mBlurImpl = getBlurImpl();
-        TypedArray a = null;
+        mBlurImpl = blurImpl
+        var a: TypedArray? = null
         try {
-            a = context.obtainStyledAttributes(attrs, R.styleable.ShapeBlurView);
-            mBlurRadius = a.getDimension(R.styleable.ShapeBlurView_blur_radius,
-                TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 10,
-                    context.getResources().getDisplayMetrics()));
-            mDownSampleFactor = a.getFloat(R.styleable.ShapeBlurView_blur_down_sample, 4);
-            mOverlayColor = a.getColor(R.styleable.ShapeBlurView_blur_overlay_color, 0);
+            a = context.obtainStyledAttributes(attrs, R.styleable.ShapeBlurView)
+            mBlurRadius = a.getDimension(
+                R.styleable.ShapeBlurView_blur_radius,
+                TypedValue.applyDimension(
+                    TypedValue.COMPLEX_UNIT_DIP, 10f,
+                    context.resources.displayMetrics
+                )
+            )
+            mBlurImpl.radius = mBlurRadius
 
-            float cornerRadiusOverride =
-                a.getDimensionPixelSize(R.styleable.ShapeBlurView_blur_corner_radius, -1);
+            mDownSampleFactor = a.getFloat(R.styleable.ShapeBlurView_blur_down_sample, 4f)
+            mOverlayColor = a.getColor(R.styleable.ShapeBlurView_blur_overlay_color, 0)
+
+            val cornerRadiusOverride =
+                a.getDimensionPixelSize(R.styleable.ShapeBlurView_blur_corner_radius, -1).toFloat()
             mCornerRadii[BlurCorner.TOP_LEFT] =
-                a.getDimensionPixelSize(R.styleable.ShapeBlurView_blur_corner_radius_top_left, -1);
+                a.getDimensionPixelSize(R.styleable.ShapeBlurView_blur_corner_radius_top_left, -1)
+                    .toFloat()
             mCornerRadii[BlurCorner.TOP_RIGHT] =
-                a.getDimensionPixelSize(R.styleable.ShapeBlurView_blur_corner_radius_top_right, -1);
+                a.getDimensionPixelSize(R.styleable.ShapeBlurView_blur_corner_radius_top_right, -1)
+                    .toFloat()
             mCornerRadii[BlurCorner.BOTTOM_RIGHT] =
-                a.getDimensionPixelSize(R.styleable.ShapeBlurView_blur_corner_radius_bottom_right,
-                    -1);
+                a.getDimensionPixelSize(
+                    R.styleable.ShapeBlurView_blur_corner_radius_bottom_right,
+                    -1
+                ).toFloat()
             mCornerRadii[BlurCorner.BOTTOM_LEFT] =
-                a.getDimensionPixelSize(R.styleable.ShapeBlurView_blur_corner_radius_bottom_left,
-                    -1);
-            initCornerData(cornerRadiusOverride);
-            blurShape = a.getInt(R.styleable.ShapeBlurView_blur_mode, BlurShape.SHAPE_RECTANGLE);
+                a.getDimensionPixelSize(
+                    R.styleable.ShapeBlurView_blur_corner_radius_bottom_left,
+                    -1
+                ).toFloat()
+            initCornerData(cornerRadiusOverride)
+            blurShape = a.getInt(R.styleable.ShapeBlurView_blur_mode, BlurShape.SHAPE_RECTANGLE)
 
-            mBorderW = a.getDimensionPixelSize(R.styleable.ShapeBlurView_blur_border_width, -1);
-            if (mBorderW < 0) {
-                mBorderW = DEFAULT_BORDER_WIDTH;
+            borderWidth =
+                a.getDimensionPixelSize(R.styleable.ShapeBlurView_blur_border_width, -1).toFloat()
+            if (borderWidth < 0) {
+                borderWidth = DEFAULT_BORDER_WIDTH
             }
-            mBorderColor = a.getColorStateList(R.styleable.ShapeBlurView_blur_border_color);
-            if (mBorderColor == null) {
-                mBorderColor = ColorStateList.valueOf(DEFAULT_BORDER_COLOR);
-            }
-        } catch (Exception e) {
-            Log.e(TAG, "ShapeBlurView", e);
+            borderColor = a.getColorStateList(R.styleable.ShapeBlurView_blur_border_color)!!
+        } catch (e: Exception) {
+            Log.e(TAG, "ShapeBlurView", e)
         } finally {
-            if (a != null) {
-                a.recycle();
-            }
+            a?.recycle()
         }
         //初始化绘制模糊区域的Paint
-        mBitmapPaint = new Paint();
-        mBitmapPaint.setAntiAlias(true);
+        mBitmapPaint = Paint()
+        mBitmapPaint!!.isAntiAlias = true
 
         //初始化绘制边框区域的画笔Paint
-        mBorderPaint = new Paint();
-        mBorderPaint.setStyle(Paint.Style.STROKE);
-        mBorderPaint.setAntiAlias(true);
-        mBorderPaint.setColor(mBorderColor.getColorForState(getState(), DEFAULT_BORDER_COLOR));
-        mBorderPaint.setStrokeWidth(mBorderW);
+        mBorderPaint = Paint()
+        mBorderPaint!!.style = Paint.Style.STROKE
+        mBorderPaint!!.isAntiAlias = true
+        mBorderPaint!!.color = borderColor.getColorForState(state, DEFAULT_BORDER_COLOR)
+        mBorderPaint!!.strokeWidth = borderWidth
     }
 
     /**
@@ -243,127 +248,104 @@ public class ShapeBlurView extends View {
      *
      * @param cornerRadiusOverride 圆角半径
      */
-    private void initCornerData(float cornerRadiusOverride) {
-        boolean any = false;
+    private fun initCornerData(cornerRadiusOverride: Float) {
+        var cornerRadius = cornerRadiusOverride
+        var any = false
         // 遍历所有角的半径，若小于0则设为0，并判断是否有任意角被设置
-        for (int i = 0, len = mCornerRadii.length; i < len; i++) {
+        var i = 0
+        val len = mCornerRadii.size
+        while (i < len) {
             if (mCornerRadii[i] < 0) {
-                mCornerRadii[i] = 0f;
+                mCornerRadii[i] = 0f
             } else {
-                any = true;
+                any = true
             }
+            i++
         }
         if (!any) {
-            if (cornerRadiusOverride < 0) {
-                cornerRadiusOverride = DEFAULT_RADIUS;
+            if (cornerRadius < 0) {
+                cornerRadius = DEFAULT_RADIUS
             }
             // 将所有角的半径设置为cornerRadiusOverride
-            Arrays.fill(mCornerRadii, cornerRadiusOverride);
+            Arrays.fill(mCornerRadii, cornerRadius)
         }
-        initCornerRadius();
+        initCornerRadius()
     }
 
     /**
      * 初始化用于绘制的角半径数组
      */
-    private void initCornerRadius() {
+    private fun initCornerRadius() {
         if (cornerRadius == null) {
             // 创建新的角半径数组，顺序为左上、右上、右下、左下，每个角有x和y两个半径值
             cornerRadius =
-                new float[] {mCornerRadii[BlurCorner.TOP_LEFT], mCornerRadii[BlurCorner.TOP_LEFT],
+                floatArrayOf(
+                    mCornerRadii[BlurCorner.TOP_LEFT], mCornerRadii[BlurCorner.TOP_LEFT],
                     mCornerRadii[BlurCorner.TOP_RIGHT], mCornerRadii[BlurCorner.TOP_RIGHT],
                     mCornerRadii[BlurCorner.BOTTOM_RIGHT], mCornerRadii[BlurCorner.BOTTOM_RIGHT],
-                    mCornerRadii[BlurCorner.BOTTOM_LEFT], mCornerRadii[BlurCorner.BOTTOM_LEFT]};
+                    mCornerRadii[BlurCorner.BOTTOM_LEFT], mCornerRadii[BlurCorner.BOTTOM_LEFT]
+                )
         } else {
             //更新已有的角半径数组
-            cornerRadius[0] = mCornerRadii[BlurCorner.TOP_LEFT];
-            cornerRadius[1] = mCornerRadii[BlurCorner.TOP_LEFT];
-            cornerRadius[2] = mCornerRadii[BlurCorner.TOP_RIGHT];
-            cornerRadius[3] = mCornerRadii[BlurCorner.TOP_RIGHT];
-            cornerRadius[4] = mCornerRadii[BlurCorner.BOTTOM_RIGHT];
-            cornerRadius[5] = mCornerRadii[BlurCorner.BOTTOM_RIGHT];
-            cornerRadius[6] = mCornerRadii[BlurCorner.BOTTOM_LEFT];
-            cornerRadius[7] = mCornerRadii[BlurCorner.BOTTOM_LEFT];
+            cornerRadius!![0] = mCornerRadii[BlurCorner.TOP_LEFT]
+            cornerRadius!![1] = mCornerRadii[BlurCorner.TOP_LEFT]
+            cornerRadius!![2] = mCornerRadii[BlurCorner.TOP_RIGHT]
+            cornerRadius!![3] = mCornerRadii[BlurCorner.TOP_RIGHT]
+            cornerRadius!![4] = mCornerRadii[BlurCorner.BOTTOM_RIGHT]
+            cornerRadius!![5] = mCornerRadii[BlurCorner.BOTTOM_RIGHT]
+            cornerRadius!![6] = mCornerRadii[BlurCorner.BOTTOM_LEFT]
+            cornerRadius!![7] = mCornerRadii[BlurCorner.BOTTOM_LEFT]
         }
     }
 
-    /**
-     * 获取模糊实现类，可以通过重写此方法提供自定义实现
-     */
-    protected IBlur getBlurImpl() {
-        return new ToolKitBlurImpl();
-    }
+    private val blurImpl: IBlur
+        /**
+         * 获取模糊实现类，可以通过重写此方法提供自定义实现
+         */
+        get() = ToolKitBlurImpl()
 
-    /**
-     * 获取最大的圆角半径
-     *
-     * @return 最大的圆角半径
-     */
-    public float getMaxCornerRadius() {
-        float maxRadius = 0;
-        for (float r : mCornerRadii) {
-            maxRadius = Math.max(r, maxRadius);
+    val maxCornerRadius: Float
+        /**
+         * 获取最大的圆角半径
+         *
+         * @return 最大的圆角半径
+         */
+        get() {
+            var maxRadius = 0f
+            for (r in mCornerRadii) {
+                maxRadius = max(r.toDouble(), maxRadius.toDouble()).toFloat()
+            }
+            return maxRadius
         }
-        return maxRadius;
-    }
 
-
-    /**
-     * 获取边框宽度
-     *
-     * @return 边框宽度
-     */
-    public float getBorderWidth() {
-        return mBorderW;
-    }
-
-    /**
-     * 获取边框颜色
-     *
-     * @return 边框颜色
-     */
-    @NonNull
-    public ColorStateList getBorderColor() {
-        return mBorderColor;
-    }
-
-    /**
-     * 获取模糊形状
-     *
-     * @return 模糊形状 {@link BlurShape}
-     */
-    @BlurShape
-    public int getBlurShape() {
-        return this.blurShape;
-    }
 
     /**
      * 释放图片资源
      */
-    private void releaseBitmap() {
+    private fun releaseBitmap() {
         if (mBitmapToBlur != null) {
-            mBitmapToBlur.recycle();
-            mBitmapToBlur = null;
+            mBitmapToBlur!!.recycle()
+            mBitmapToBlur = null
         }
         if (mBlurredBitmap != null) {
-            mBlurredBitmap.recycle();
-            mBlurredBitmap = null;
+            mBlurredBitmap!!.recycle()
+            mBlurredBitmap = null
         }
         if (matrix != null) {
-            matrix = null;
+            matrix = null
         }
         if (shader != null) {
-            shader = null;
+            shader = null
         }
-        mContext = null;
+        mContext = null
     }
 
     /**
      * 释放资源
      */
-    protected void release() {
-        releaseBitmap();
-        mBlurImpl.release();
+    private fun release() {
+        releaseBitmap()
+        mBlurImpl!!.release()
     }
 
     /**
@@ -371,53 +353,51 @@ public class ShapeBlurView extends View {
      *
      * @return 是否准备成功
      */
-    protected boolean prepare() {
+    protected fun prepare(): Boolean {
         //模糊半径0 不需要模糊处理
-        if (mBlurRadius == 0) {
-            release();
-            return false;
+        if (mBlurRadius == 0f) {
+            release()
+            return false
         }
-        float downSampleFactor = mDownSampleFactor;
-        float radius = mBlurRadius / downSampleFactor;
+        var downSampleFactor = mDownSampleFactor
+        val radius = mBlurRadius / downSampleFactor
         // 模糊半径不能超过MAX_BLUR_RADIUS，调整降采样因子
         if (radius > MAX_BLUR_RADIUS) {
-            downSampleFactor = downSampleFactor * radius / MAX_BLUR_RADIUS;
+            downSampleFactor = downSampleFactor * radius / MAX_BLUR_RADIUS
         }
-        final int width = getWidth();
-        final int height = getHeight();
-        int scaledWidth = Math.max(1, (int) (width / downSampleFactor));
-        int scaledHeight = Math.max(1, (int) (height / downSampleFactor));
-        if (mBlurringCanvas == null || mBlurredBitmap == null ||
-            mBlurredBitmap.getWidth() != scaledWidth ||
-            mBlurredBitmap.getHeight() != scaledHeight) {
-            boolean normal = false;
+        val width = width
+        val height = height
+        val scaledWidth = max(1.0, (width / downSampleFactor).toInt().toDouble())
+            .toInt()
+        val scaledHeight = max(1.0, (height / downSampleFactor).toInt().toDouble())
+            .toInt()
+        if (mBlurringCanvas == null || mBlurredBitmap == null || mBlurredBitmap!!.width != scaledWidth || mBlurredBitmap!!.height != scaledHeight) {
+            var normal = false
             try {
-                if (mBitmapToBlur != null && mBitmapToBlur.getWidth() > scaledWidth &&
-                    mBitmapToBlur.getHeight() > scaledHeight) {
-                    mBitmapToBlur.reconfigure(scaledWidth, scaledHeight, Bitmap.Config.ARGB_8888);
+                if (mBitmapToBlur != null && mBitmapToBlur!!.width > scaledWidth && mBitmapToBlur!!.height > scaledHeight) {
+                    mBitmapToBlur!!.reconfigure(scaledWidth, scaledHeight, Bitmap.Config.ARGB_8888)
                 } else {
                     mBitmapToBlur =
-                        Bitmap.createBitmap(scaledWidth, scaledHeight, Bitmap.Config.ARGB_8888);
+                        Bitmap.createBitmap(scaledWidth, scaledHeight, Bitmap.Config.ARGB_8888)
                 }
-                mBlurringCanvas = new Canvas(mBitmapToBlur);
-                if (mBlurredBitmap != null && mBlurredBitmap.getWidth() > scaledWidth &&
-                    mBlurredBitmap.getHeight() > scaledHeight) {
-                    mBlurredBitmap.reconfigure(scaledWidth, scaledHeight, Bitmap.Config.ARGB_8888);
+                mBlurringCanvas = Canvas(mBitmapToBlur!!)
+                if (mBlurredBitmap != null && mBlurredBitmap!!.width > scaledWidth && mBlurredBitmap!!.height > scaledHeight) {
+                    mBlurredBitmap!!.reconfigure(scaledWidth, scaledHeight, Bitmap.Config.ARGB_8888)
                 } else {
                     mBlurredBitmap =
-                        Bitmap.createBitmap(scaledWidth, scaledHeight, Bitmap.Config.ARGB_8888);
+                        Bitmap.createBitmap(scaledWidth, scaledHeight, Bitmap.Config.ARGB_8888)
                 }
-                normal = true;
-            } catch (Exception e) {
-                Log.e(TAG, "prepare", e);
-                return false;
+                normal = true
+            } catch (e: Exception) {
+                Log.e(TAG, "prepare", e)
+                return false
             } finally {
                 if (!normal) {
-                    release();
+                    release()
                 }
             }
         }
-        return true;
+        return true
     }
 
     /**
@@ -426,141 +406,142 @@ public class ShapeBlurView extends View {
      * @param bitmapToBlur  需要模糊的Bitmap
      * @param blurredBitmap 模糊后的Bitmap
      */
-    protected void blur(Bitmap bitmapToBlur, Bitmap blurredBitmap) {
-        shader = new BitmapShader(blurredBitmap, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP);
-        mBlurImpl.blur(bitmapToBlur, blurredBitmap);
+    protected fun blur(bitmapToBlur: Bitmap?, blurredBitmap: Bitmap?) {
+        shader = BitmapShader(blurredBitmap!!, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP)
+        if (bitmapToBlur != null) {
+            mBlurImpl!!.blur(bitmapToBlur, blurredBitmap)
+        }
     }
 
     /**
      * 视图树的预绘制监听器
      */
-    private final ViewTreeObserver.OnPreDrawListener preDrawListener =
-        new ViewTreeObserver.OnPreDrawListener() {
-            @Override
-            public boolean onPreDraw() {
-                Log.d(TAG, "onPreDraw start： " + this.hashCode());
-                final int[] locations = new int[2];
-                Bitmap oldBmp = mBlurredBitmap;
-                View decor = mDecorView;
-                if (decor != null && isShown() && prepare()) {
-                    boolean redrawBitmap = mBlurredBitmap != oldBmp;
-                    decor.getLocationOnScreen(locations);
-                    int x = -locations[0];
-                    int y = -locations[1];
-                    getLocationOnScreen(locations);
-                    x += locations[0];
-                    y += locations[1];
-                    // just erase transparent
-                    mBitmapToBlur.eraseColor(0);
-                    int rc = mBlurringCanvas.save();
-                    mIsRendering = true;
-                    RENDERING_COUNT++;
-                    try {
-                        //画布缩放到mBitmapToBlur 大小
-                        mBlurringCanvas.scale(1.f * mBitmapToBlur.getWidth() / getWidth(),
-                            1.f * mBitmapToBlur.getHeight() / getHeight());
-                        //画布平移到view位置
-                        mBlurringCanvas.translate(-x, -y);
+    private val preDrawListener: OnPreDrawListener = object : OnPreDrawListener {
+        override fun onPreDraw(): Boolean {
+            Log.d(TAG, "onPreDraw start： " + this.hashCode())
+            val locations = IntArray(2)
+            val oldBmp = mBlurredBitmap
+            val decor = mDecorView
+            if (decor != null && isShown && prepare()) {
+                val redrawBitmap = mBlurredBitmap != oldBmp
+                decor.getLocationOnScreen(locations)
+                var x = -locations[0]
+                var y = -locations[1]
+                getLocationOnScreen(locations)
+                x += locations[0]
+                y += locations[1]
+                // just erase transparent
+                mBitmapToBlur!!.eraseColor(0)
+                val rc = mBlurringCanvas!!.save()
+                mIsRendering = true
+                RENDERING_COUNT++
+                try {
+                    //画布缩放到mBitmapToBlur 大小
+                    mBlurringCanvas!!.scale(
+                        1f * mBitmapToBlur!!.width / width,
+                        1f * mBitmapToBlur!!.height / height
+                    )
+                    //画布平移到view位置
+                    mBlurringCanvas!!.translate(-x.toFloat(), -y.toFloat())
 
-                        //绘制decorView和decorView背景 到画布上
-                        if (decor.getBackground() != null) {
-                            decor.getBackground().draw(mBlurringCanvas);
-                        }
-                        decor.draw(mBlurringCanvas);
-                    } catch (StopException ignored) {
-                    } finally {
-                        mIsRendering = false;
-                        RENDERING_COUNT--;
-                        mBlurringCanvas.restoreToCount(rc);
+                    //绘制decorView和decorView背景 到画布上
+                    if (decor.background != null) {
+                        decor.background.draw(mBlurringCanvas!!)
                     }
-
-                    //模糊mBitmapToBlur，模糊后的结果输出到mBlurredBitmap
-                    blur(mBitmapToBlur, mBlurredBitmap);
-
-                    //重新绘制
-                    if (redrawBitmap || mDifferentRoot) {
-                        invalidate();
-                    }
+                    decor.draw(mBlurringCanvas!!)
+                } catch (ignored: StopException) {
+                } finally {
+                    mIsRendering = false
+                    RENDERING_COUNT--
+                    mBlurringCanvas!!.restoreToCount(rc)
                 }
-                Log.d(TAG, "onPreDraw end：" + this.hashCode());
-                return true;
-            }
-        };
 
-    protected View getActivityDecorView() {
-        Context ctx = getContext();
-        for (int i = 0; i < 4 && !(ctx instanceof Activity) && ctx instanceof ContextWrapper; i++) {
-            ctx = ((ContextWrapper) ctx).getBaseContext();
-        }
-        if (ctx instanceof Activity) {
-            return ((Activity) ctx).getWindow().getDecorView();
-        } else {
-            return null;
+                //模糊mBitmapToBlur，模糊后的结果输出到mBlurredBitmap
+                blur(mBitmapToBlur, mBlurredBitmap)
+
+                //重新绘制
+                if (redrawBitmap || mDifferentRoot) {
+                    invalidate()
+                }
+            }
+            Log.d(TAG, "onPreDraw end：" + this.hashCode())
+            return true
         }
     }
 
-    @Override
-    protected void onAttachedToWindow() {
-        super.onAttachedToWindow();
-        mDecorView = getActivityDecorView();
+    protected val activityDecorView: View?
+        get() {
+            var ctx = context
+            var i = 0
+            while (i < 4 && ctx !is Activity && ctx is ContextWrapper) {
+                ctx = ctx.baseContext
+                i++
+            }
+            return if (ctx is Activity) {
+                ctx.window.decorView
+            } else {
+                null
+            }
+        }
+
+    override fun onAttachedToWindow() {
+        super.onAttachedToWindow()
+        mDecorView = activityDecorView
         if (mDecorView != null) {
-            mDecorView.getViewTreeObserver().addOnPreDrawListener(preDrawListener);
-            mDifferentRoot = mDecorView.getRootView() != getRootView();
+            mDecorView!!.viewTreeObserver.addOnPreDrawListener(preDrawListener)
+            mDifferentRoot = mDecorView!!.rootView !== rootView
             if (mDifferentRoot) {
-                mDecorView.postInvalidate();
+                mDecorView!!.postInvalidate()
             }
         } else {
-            mDifferentRoot = false;
+            mDifferentRoot = false
         }
     }
 
-    @Override
-    protected void onDetachedFromWindow() {
+    override fun onDetachedFromWindow() {
         if (mDecorView != null) {
-            mDecorView.getViewTreeObserver().removeOnPreDrawListener(preDrawListener);
+            mDecorView!!.viewTreeObserver.removeOnPreDrawListener(preDrawListener)
         }
-        release();
-        super.onDetachedFromWindow();
+        release()
+        super.onDetachedFromWindow()
     }
 
-    @Override
-    public void draw(@NonNull Canvas canvas) {
+    override fun draw(canvas: Canvas) {
         if (mIsRendering) {
             // Quit here, don't draw views above me
-            throw STOP_EXCEPTION;
+            throw STOP_EXCEPTION
         } else if (RENDERING_COUNT > 0) {
             // Doesn't support blurView overlap on another blurView
-            Log.w(TAG, "draw, Doesn't support blurView overlap on another blurView");
+            Log.w(TAG, "draw, Doesn't support blurView overlap on another blurView")
         } else {
-            super.draw(canvas);
+            super.draw(canvas)
         }
     }
 
-    @Override
-    protected void onDraw(@NonNull Canvas canvas) {
-        super.onDraw(canvas);
+    override fun onDraw(canvas: Canvas) {
+        super.onDraw(canvas)
         try {
-            Log.i(TAG, "onDraw, width: " + getWidth() + ", height: " + getHeight());
-            canvas.save();
-            canvas.clipRect(0, 0, getWidth(), getHeight());
-            drawBlurredBitmap(canvas, mBlurredBitmap, mOverlayColor);
-            canvas.restore();
-        } catch (Exception e) {
-            Log.e(TAG, "onDraw", e);
+            Log.i(TAG, "onDraw, width: $width, height: $height")
+            canvas.save()
+            canvas.clipRect(0, 0, width, height)
+            drawBlurredBitmap(canvas, mBlurredBitmap, mOverlayColor)
+            canvas.restore()
+        } catch (e: Exception) {
+            Log.e(TAG, "onDraw", e)
         }
     }
 
     /**
      * Custom draw the blurred bitmap and color to define your own shape
      */
-    protected void drawBlurredBitmap(Canvas canvas, Bitmap blurBitmap, int overlayColor) {
+    protected fun drawBlurredBitmap(canvas: Canvas, blurBitmap: Bitmap?, overlayColor: Int) {
         if (blurBitmap != null) {
             if (blurShape == BlurShape.SHAPE_CIRCLE) {
-                drawCircleRectBitmap(canvas, blurBitmap, overlayColor);
+                drawCircleRectBitmap(canvas, blurBitmap, overlayColor)
             } else if (blurShape == BlurShape.SHAPE_OVAL) {
-                drawOvalRectBitmap(canvas, blurBitmap, overlayColor);
+                drawOvalRectBitmap(canvas, blurBitmap, overlayColor)
             } else {
-                drawRoundRectBitmap(canvas, blurBitmap, overlayColor);
+                drawRoundRectBitmap(canvas, blurBitmap, overlayColor)
             }
         }
     }
@@ -568,236 +549,250 @@ public class ShapeBlurView extends View {
     /**
      * 默认或者画矩形可带圆角
      */
-    private void drawRoundRectBitmap(Canvas canvas, Bitmap blurBitmap, int overlayColor) {
+    private fun drawRoundRectBitmap(canvas: Canvas, blurBitmap: Bitmap, overlayColor: Int) {
         //Path.Direction.CW：clockwise ，沿顺时针方向绘制,Path.Direction.CCW：counter-clockwise ，沿逆时针方向绘制
         //先重置，再设置
-        cornerPath.reset();
-        float borderHalfW = mBorderW / 2f;
-        cornerPath.addRoundRect(0, 0, getWidth(), getHeight(), cornerRadius, Path.Direction.CW);
-        cornerPath.close();
-        canvas.clipPath(cornerPath);
+        cornerPath.reset()
+        val borderHalfW = borderWidth / 2f
+        cornerPath.addRoundRect(
+            0f,
+            0f,
+            width.toFloat(),
+            height.toFloat(),
+            cornerRadius!!,
+            Path.Direction.CW
+        )
+        cornerPath.close()
+        canvas.clipPath(cornerPath)
 
         //绘制模糊区域
-        mRectFDst.set(mBorderW, mBorderW, getWidth() - mBorderW, getHeight() - mBorderW);
-        mRectSrc.set(0, 0, blurBitmap.getWidth(), blurBitmap.getHeight());
-        canvas.drawBitmap(blurBitmap, mRectSrc, mRectFDst, null);
+        mRectFDst[borderWidth, borderWidth, width - borderWidth] = height - borderWidth
+        mRectSrc[0, 0, blurBitmap.width] = blurBitmap.height
+        canvas.drawBitmap(blurBitmap, mRectSrc, mRectFDst, null)
 
         //绘制覆盖颜色值
-        mBitmapPaint.setColor(overlayColor);
-        canvas.drawRect(mRectFDst, mBitmapPaint);
+        mBitmapPaint!!.color = overlayColor
+        canvas.drawRect(mRectFDst, mBitmapPaint!!)
 
         //绘制边框
-        if (mBorderW > 0) {
+        if (borderWidth > 0) {
             //先重置，再设置
-            cornerPath.reset();
-            cornerPath.addRoundRect(borderHalfW, borderHalfW, getWidth() - borderHalfW,
-                getHeight() - borderHalfW, cornerRadius, Path.Direction.CW);
-            mBorderPaint.setStrokeWidth(mBorderW);
-            canvas.drawPath(cornerPath, mBorderPaint);
+            cornerPath.reset()
+            cornerPath.addRoundRect(
+                borderHalfW, borderHalfW, width - borderHalfW,
+                height - borderHalfW, cornerRadius!!, Path.Direction.CW
+            )
+            mBorderPaint!!.strokeWidth = borderWidth
+            canvas.drawPath(cornerPath, mBorderPaint!!)
         }
     }
 
     /**
      * 画椭圆，如果宽高一样则为圆形
      */
-    private void drawOvalRectBitmap(Canvas canvas, Bitmap blurBitmap, int overlayColor) {
-        mBitmapPaint.reset();
-        mBitmapPaint.setAntiAlias(true);
+    private fun drawOvalRectBitmap(canvas: Canvas, blurBitmap: Bitmap, overlayColor: Int) {
+        mBitmapPaint!!.reset()
+        mBitmapPaint!!.isAntiAlias = true
         if (shader == null) {
-            shader = new BitmapShader(blurBitmap, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP);
+            shader = BitmapShader(blurBitmap, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP)
         }
         if (matrix == null) {
-            matrix = new Matrix();
+            matrix = Matrix()
         } else {
-            matrix.reset();
+            matrix!!.reset()
         }
-        matrix.postScale((getWidth() - mBorderW) / (float) blurBitmap.getWidth(),
-            (getHeight() - mBorderW) / (float) blurBitmap.getHeight());
-        shader.setLocalMatrix(matrix);
-        mBitmapPaint.setShader(shader);
-        canvas.drawOval(mBorderW, mBorderW, getWidth() - mBorderW, getHeight() - mBorderW,
-            mBitmapPaint);
+        matrix!!.postScale(
+            (width - borderWidth) / blurBitmap.width.toFloat(),
+            (height - borderWidth) / blurBitmap.height.toFloat()
+        )
+        shader!!.setLocalMatrix(matrix)
+        mBitmapPaint!!.setShader(shader)
+        canvas.drawOval(
+            borderWidth, borderWidth, width - borderWidth, height - borderWidth,
+            mBitmapPaint!!
+        )
 
-        mBitmapPaint.reset();
-        mBitmapPaint.setAntiAlias(true);
-        mBitmapPaint.setColor(overlayColor);
-        float borderHalfW = mBorderW / 2;
-        canvas.drawOval(mBorderW, mBorderW, getWidth() - mBorderW, getHeight() - mBorderW,
-            mBitmapPaint);
-        if (mBorderW > 0) {
-            mBorderRect.set(0, 0, getWidth(), getHeight());
-            mBorderRect.inset(mBorderW / 2, mBorderW / 2);
-            canvas.drawOval(mBorderRect, mBorderPaint);
+        mBitmapPaint!!.reset()
+        mBitmapPaint!!.isAntiAlias = true
+        mBitmapPaint!!.color = overlayColor
+
+        canvas.drawOval(
+            borderWidth, borderWidth, width - borderWidth, height - borderWidth,
+            mBitmapPaint!!
+        )
+        if (borderWidth > 0) {
+            mBorderRect[0f, 0f, width.toFloat()] = height.toFloat()
+            mBorderRect.inset(borderWidth / 2, borderWidth / 2)
+            canvas.drawOval(mBorderRect, mBorderPaint!!)
         }
     }
 
     /**
      * 画圆形，以宽高最小的为半径
      */
-    private void drawCircleRectBitmap(Canvas canvas, Bitmap blurBitmap, int overlayColor) {
+    private fun drawCircleRectBitmap(canvas: Canvas, blurBitmap: Bitmap, overlayColor: Int) {
         // 初始化目标矩形，设置为视图的尺寸
-        Log.i(TAG, "drawCircleRectBitmap start");
-        mRectFDst.set(0, 0, getWidth(), getHeight());
+        Log.i(TAG, "drawCircleRectBitmap start")
+        mRectFDst[0f, 0f, width.toFloat()] = height.toFloat()
         // 初始化源矩形，设置为位图的尺寸
-        mRectSrc.set(0, 0, blurBitmap.getWidth(), blurBitmap.getHeight());
+        mRectSrc[0, 0, blurBitmap.width] = blurBitmap.height
 
-        mBitmapPaint.reset();
-        mBitmapPaint.setAntiAlias(true);
+        mBitmapPaint!!.reset()
+        mBitmapPaint!!.isAntiAlias = true
         if (shader == null) {
-            shader = new BitmapShader(blurBitmap, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP);
+            shader = BitmapShader(blurBitmap, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP)
         }
         if (matrix == null) {
-            matrix = new Matrix();
+            matrix = Matrix()
         } else {
-            matrix.reset();
+            matrix!!.reset()
         }
-        matrix.postScale(mRectFDst.width() / mRectSrc.width(),
-            mRectFDst.height() / mRectSrc.height());
-        shader.setLocalMatrix(matrix);
-        mBitmapPaint.setShader(shader);
+        matrix!!.postScale(
+            mRectFDst.width() / mRectSrc.width(),
+            mRectFDst.height() / mRectSrc.height()
+        )
+        shader!!.setLocalMatrix(matrix)
+        mBitmapPaint!!.setShader(shader)
         //前面Scale，故判断以哪一个来取中心点和半径
         //圆形 相关
-        float cRadius, cx, cy;
-        float borderHalfW = mBorderW / 2f;
-        if (getWidth() >= blurBitmap.getWidth()) {
+        val cRadius: Float
+        val cx: Float
+        val cy: Float
+        val borderHalfW = borderWidth / 2f
+        if (width >= blurBitmap.width) {
             //圆心坐标位置取大的矩形的宽高一半
-            cx = getWidth() / 2f;
-            cy = getHeight() / 2f;
+            cx = width / 2f
+            cy = height / 2f
             //取宽高小的为半径
-            cRadius = Math.min(getWidth(), getHeight()) / 2f;
-            mBorderRect.set(borderHalfW, borderHalfW, getWidth() - borderHalfW,
-                getHeight() - borderHalfW);
+            cRadius = (min(width.toDouble(), height.toDouble()) / 2f).toFloat()
+            mBorderRect[borderHalfW, borderHalfW, width - borderHalfW] = height - borderHalfW
         } else {
-            cx = blurBitmap.getWidth() / 2f;
-            cy = blurBitmap.getHeight() / 2f;
-            cRadius = Math.min(blurBitmap.getWidth(), blurBitmap.getHeight()) / 2f;
-            mBorderRect.set(borderHalfW, borderHalfW, blurBitmap.getWidth() - borderHalfW,
-                blurBitmap.getHeight() - borderHalfW);
+            cx = blurBitmap.width / 2f
+            cy = blurBitmap.height / 2f
+            cRadius =
+                (min(blurBitmap.width.toDouble(), blurBitmap.height.toDouble()) / 2f).toFloat()
+            mBorderRect[borderHalfW, borderHalfW, blurBitmap.width - borderHalfW] =
+                blurBitmap.height - borderHalfW
         }
         //绘制模糊图片
-        canvas.drawCircle(cx, cy, cRadius, mBitmapPaint);
-        mBitmapPaint.reset();
-        mBitmapPaint.setAntiAlias(true);
-        mBitmapPaint.setColor(overlayColor);
+        canvas.drawCircle(cx, cy, cRadius, mBitmapPaint!!)
+        mBitmapPaint!!.reset()
+        mBitmapPaint!!.isAntiAlias = true
+        mBitmapPaint!!.color = overlayColor
         //绘制纯色覆盖
-        canvas.drawCircle(cx, cy, cRadius, mBitmapPaint);
+        canvas.drawCircle(cx, cy, cRadius, mBitmapPaint!!)
 
         //使用宽高相等的椭圆为圆形来画边框
-        if (mBorderW > 0) {
-            float width = mBorderRect.width();
-            float height = mBorderRect.height();
-            float minSide = Math.min(width, height);
-            float difX = (width - minSide) / 2;
-            float difY = (height - minSide) / 2;
+        if (borderWidth > 0) {
+            val width = mBorderRect.width()
+            val height = mBorderRect.height()
+            val minSide = min(width.toDouble(), height.toDouble()).toFloat()
+            val difX = (width - minSide) / 2
+            val difY = (height - minSide) / 2
 
             // 将矩形调整为正方形并居中
-            mBorderRect.left += difX;
-            mBorderRect.top += difY;
-            mBorderRect.right = mBorderRect.left + minSide;
-            mBorderRect.bottom = mBorderRect.top + minSide;
+            mBorderRect.left += difX
+            mBorderRect.top += difY
+            mBorderRect.right = mBorderRect.left + minSide
+            mBorderRect.bottom = mBorderRect.top + minSide
 
             // 内缩边框宽度的一半
-            mBorderRect.inset(mBorderW / 2, mBorderW / 2);
+            mBorderRect.inset(borderWidth / 2, borderWidth / 2)
 
             // 绘制圆形边框
-            mBorderPaint.setStrokeWidth(mBorderW);
-            canvas.drawOval(mBorderRect, mBorderPaint);
+            mBorderPaint!!.strokeWidth = borderWidth
+            canvas.drawOval(mBorderRect, mBorderPaint!!)
         }
-        Log.i(TAG, "drawCircleRectBitmap end");
+        Log.i(TAG, "drawCircleRectBitmap end")
     }
 
-    public @NonNull int[] getState() {
-        return StateSet.WILD_CARD;
-    }
+    val state: IntArray
+        get() = StateSet.WILD_CARD
 
-    private static class StopException extends RuntimeException {
-    }
+    private class StopException : RuntimeException()
 
-    private static final StopException STOP_EXCEPTION = new StopException();
+    init {
+        init(context, attrs)
+    }
 
     /**
      * 传入构造器，避免传统的设置一个参数调用一次invalidate()重新绘制
      */
-    public void refreshView(Builder builder) {
-        boolean isInvalidate = false;
+    fun refreshView(builder: Builder?) {
+        var isInvalidate = false
         if (builder == null) {
-            return;
+            return
         }
         if (builder.blurMode != -1 && this.blurShape != builder.blurMode) {
-            this.blurShape = builder.blurMode;
-            isInvalidate = true;
+            this.blurShape = builder.blurMode
+            isInvalidate = true
         }
-        if (builder.mBorderColor != null && !mBorderColor.equals(builder.mBorderColor)) {
-            this.mBorderColor = builder.mBorderColor;
-            mBorderPaint.setColor(mBorderColor.getColorForState(getState(), DEFAULT_BORDER_COLOR));
-            if (mBorderW > 0) {
-                isInvalidate = true;
+        if (builder.mBorderColor != null && borderColor != builder.mBorderColor) {
+            this.borderColor = builder.mBorderColor!!
+            mBorderPaint!!.color =
+                borderColor.getColorForState(state, DEFAULT_BORDER_COLOR)
+            if (borderWidth > 0) {
+                isInvalidate = true
             }
         }
         if (builder.mBorderWidth > 0) {
-            mBorderW = builder.mBorderWidth;
-            mBorderPaint.setStrokeWidth(mBorderW);
-            isInvalidate = true;
+            borderWidth = builder.mBorderWidth
+            mBorderPaint!!.strokeWidth = borderWidth
+            isInvalidate = true
         }
-        if (mCornerRadii[BlurCorner.TOP_LEFT] != builder.mCornerRadii[BlurCorner.TOP_LEFT] ||
-            mCornerRadii[BlurCorner.TOP_RIGHT] != builder.mCornerRadii[BlurCorner.TOP_RIGHT] ||
-            mCornerRadii[BlurCorner.BOTTOM_RIGHT] !=
-                builder.mCornerRadii[BlurCorner.BOTTOM_RIGHT] ||
-            mCornerRadii[BlurCorner.BOTTOM_LEFT] != builder.mCornerRadii[BlurCorner.BOTTOM_LEFT]) {
-            mCornerRadii[BlurCorner.TOP_LEFT] = builder.mCornerRadii[BlurCorner.TOP_LEFT];
-            mCornerRadii[BlurCorner.TOP_RIGHT] = builder.mCornerRadii[BlurCorner.TOP_RIGHT];
-            mCornerRadii[BlurCorner.BOTTOM_LEFT] = builder.mCornerRadii[BlurCorner.BOTTOM_LEFT];
-            mCornerRadii[BlurCorner.BOTTOM_RIGHT] = builder.mCornerRadii[BlurCorner.BOTTOM_RIGHT];
-            isInvalidate = true;
-            initCornerRadius();
+        if (mCornerRadii[BlurCorner.TOP_LEFT] != builder.mCornerRadii[BlurCorner.TOP_LEFT] || mCornerRadii[BlurCorner.TOP_RIGHT] != builder.mCornerRadii[BlurCorner.TOP_RIGHT] || mCornerRadii[BlurCorner.BOTTOM_RIGHT] != builder.mCornerRadii[BlurCorner.BOTTOM_RIGHT] || mCornerRadii[BlurCorner.BOTTOM_LEFT] != builder.mCornerRadii[BlurCorner.BOTTOM_LEFT]) {
+            mCornerRadii[BlurCorner.TOP_LEFT] = builder.mCornerRadii[BlurCorner.TOP_LEFT]
+            mCornerRadii[BlurCorner.TOP_RIGHT] = builder.mCornerRadii[BlurCorner.TOP_RIGHT]
+            mCornerRadii[BlurCorner.BOTTOM_LEFT] = builder.mCornerRadii[BlurCorner.BOTTOM_LEFT]
+            mCornerRadii[BlurCorner.BOTTOM_RIGHT] = builder.mCornerRadii[BlurCorner.BOTTOM_RIGHT]
+            isInvalidate = true
+            initCornerRadius()
         }
         if (builder.mOverlayColor != -1 && mOverlayColor != builder.mOverlayColor) {
-            mOverlayColor = builder.mOverlayColor;
-            isInvalidate = true;
+            mOverlayColor = builder.mOverlayColor
+            isInvalidate = true
         }
 
         if (builder.mBlurRadius > 0 && mBlurRadius != builder.mBlurRadius) {
-            mBlurRadius = builder.mBlurRadius;
-            isInvalidate = true;
+            mBlurRadius = builder.mBlurRadius
+            isInvalidate = true
         }
         if (builder.mDownSampleFactor > 0 && mDownSampleFactor != builder.mDownSampleFactor) {
-            mDownSampleFactor = builder.mDownSampleFactor;
-            isInvalidate = true;
-            releaseBitmap();
+            mDownSampleFactor = builder.mDownSampleFactor
+            isInvalidate = true
+            releaseBitmap()
         }
         if (isInvalidate) {
-            invalidate();
+            invalidate()
         }
     }
 
     /**
      * @noinspection unused
      */
-    public static class Builder {
+    class Builder(context: Context) {
         // default 4
-        private float mDownSampleFactor = -1;
-        // default #aaffffff
-        private int mOverlayColor = -1;
-        // default 10dp (0 < r <= 25)
-        private float mBlurRadius = -1;
-        private float mBorderWidth = -1;
-        private ColorStateList mBorderColor = null;
-        private int blurMode = -1;
-        private final float[] mCornerRadii = new float[] {0f, 0f, 0f, 0f};
-        private final Context mContext;
+        var mDownSampleFactor: Float = -1f
 
-        private Builder(Context context) {
-            mContext = context.getApplicationContext();
-        }
+        // default #aaffffff
+        var mOverlayColor: Int = -1
+
+        // default 10dp (0 < r <= 25)
+        var mBlurRadius: Float = -1f
+        var mBorderWidth: Float = -1f
+        var mBorderColor: ColorStateList? = null
+        var blurMode: Int = -1
+        val mCornerRadii: FloatArray = floatArrayOf(0f, 0f, 0f, 0f)
+        private val mContext: Context = context.applicationContext
 
         /**
          * 模糊半径
          *
          * @param radius 0~25
          */
-        public Builder setBlurRadius(@FloatRange(from = 0, to = 25) float radius) {
-            mBlurRadius = radius;
-            return this;
+        fun setBlurRadius(@FloatRange(from = 0.0, to = 25.0) radius: Float): Builder {
+            mBlurRadius = radius
+            return this
         }
 
         /**
@@ -805,12 +800,10 @@ public class ShapeBlurView extends View {
          *
          * @param factor 采样率
          */
-        public Builder setDownSampleFactor(float factor) {
-            if (factor <= 0) {
-                throw new IllegalArgumentException("DownSample factor must be greater than 0.");
-            }
-            mDownSampleFactor = factor;
-            return this;
+        fun setDownSampleFactor(factor: Float): Builder {
+            require(!(factor <= 0)) { "DownSample factor must be greater than 0." }
+            mDownSampleFactor = factor
+            return this
         }
 
         /**
@@ -818,9 +811,9 @@ public class ShapeBlurView extends View {
          *
          * @param color 蒙层颜色
          */
-        public Builder setOverlayColor(int color) {
-            mOverlayColor = color;
-            return this;
+        fun setOverlayColor(color: Int): Builder {
+            mOverlayColor = color
+            return this
         }
 
         /**
@@ -830,9 +823,9 @@ public class ShapeBlurView extends View {
          * @param corner 枚举类型 对应4个角
          * @param radius 角半径幅度
          */
-        public Builder setCornerRadius(@BlurCorner int corner, float radius) {
-            mCornerRadii[corner] = radius;
-            return this;
+        fun setCornerRadius(@BlurCorner corner: Int, radius: Float): Builder {
+            mCornerRadii[corner] = radius
+            return this
         }
 
         /**
@@ -841,9 +834,9 @@ public class ShapeBlurView extends View {
          *
          * @param resId dimension resource id of radii.
          */
-        public Builder setCornerRadiusDimen(@DimenRes int resId) {
-            float radius = mContext.getResources().getDimension(resId);
-            return setCornerRadius(radius, radius, radius, radius);
+        fun setCornerRadiusDimen(@DimenRes resId: Int): Builder {
+            val radius = mContext.resources.getDimension(resId)
+            return setCornerRadius(radius, radius, radius, radius)
         }
 
         /**
@@ -852,21 +845,23 @@ public class ShapeBlurView extends View {
          *
          * @param radius 4个角同值
          */
-        public Builder setCornerRadius(float radius) {
-            return setCornerRadius(radius, radius, radius, radius);
+        fun setCornerRadius(radius: Float): Builder {
+            return setCornerRadius(radius, radius, radius, radius)
         }
 
         /**
          * Set the corner radius of a specific corner in px.
          * 设置圆角 圆形、椭圆无效
          */
-        public Builder setCornerRadius(float topLeft, float topRight, float bottomLeft,
-                                       float bottomRight) {
-            mCornerRadii[BlurCorner.TOP_LEFT] = topLeft;
-            mCornerRadii[BlurCorner.TOP_RIGHT] = topRight;
-            mCornerRadii[BlurCorner.BOTTOM_LEFT] = bottomLeft;
-            mCornerRadii[BlurCorner.BOTTOM_RIGHT] = bottomRight;
-            return this;
+        fun setCornerRadius(
+            topLeft: Float, topRight: Float, bottomLeft: Float,
+            bottomRight: Float
+        ): Builder {
+            mCornerRadii[BlurCorner.TOP_LEFT] = topLeft
+            mCornerRadii[BlurCorner.TOP_RIGHT] = topRight
+            mCornerRadii[BlurCorner.BOTTOM_LEFT] = bottomLeft
+            mCornerRadii[BlurCorner.BOTTOM_RIGHT] = bottomRight
+            return this
         }
 
         /**
@@ -874,8 +869,8 @@ public class ShapeBlurView extends View {
          *
          * @param resId 资源ID
          */
-        public Builder setBorderWidth(@DimenRes int resId) {
-            return setBorderWidth(mContext.getResources().getDimension(resId));
+        fun setBorderWidth(@DimenRes resId: Int): Builder {
+            return setBorderWidth(mContext.resources.getDimension(resId))
         }
 
         /**
@@ -883,9 +878,9 @@ public class ShapeBlurView extends View {
          *
          * @param width 转px值
          */
-        public Builder setBorderWidth(float width) {
-            mBorderWidth = width;
-            return this;
+        fun setBorderWidth(width: Float): Builder {
+            mBorderWidth = width
+            return this
         }
 
         /**
@@ -893,13 +888,15 @@ public class ShapeBlurView extends View {
          *
          * @param color R.color.xxxx
          */
-        public Builder setBorderColor(@ColorRes int color) {
-            return setBorderColor(ColorStateList.valueOf(ContextCompat.getColor(mContext, color)));
+        fun setBorderColor(@ColorRes color: Int): Builder {
+            return setBorderColor(ColorStateList.valueOf(ContextCompat.getColor(mContext, color)))
         }
 
-        public Builder setBorderColor(ColorStateList colors) {
-            mBorderColor = (colors != null) ? colors : ColorStateList.valueOf(DEFAULT_BORDER_COLOR);
-            return this;
+        fun setBorderColor(colors: ColorStateList?): Builder {
+            mBorderColor = if ((colors != null)) colors else ColorStateList.valueOf(
+                DEFAULT_BORDER_COLOR
+            )
+            return this
         }
 
         /**
@@ -907,18 +904,46 @@ public class ShapeBlurView extends View {
          *
          * @param blurMode BlurMode枚举值，支持圆、方形、椭圆（宽高相等椭圆为圆）
          */
-        public Builder setBlurMode(@BlurShape int blurMode) {
-            this.blurMode = blurMode;
-            return this;
+        fun setBlurMode(@BlurShape blurMode: Int): Builder {
+            this.blurMode = blurMode
+            return this
         }
-
     }
 
-    /**
-     * 建造者模式，避免设置一个参数调用一次重新绘制
-     */
-    public static Builder build(Context context) {
-        return new Builder(context);
-    }
+    companion object {
+        private const val TAG = "ShapeBlurView"
 
+        /**
+         * 最大模糊半径
+         */
+        private const val MAX_BLUR_RADIUS = Toolkit.MAX_BLUR_RADIUS
+
+        /**
+         * 默认边框颜色为白色
+         */
+        const val DEFAULT_BORDER_COLOR: Int = Color.WHITE
+
+        /**
+         * 静态计数器，跟踪渲染次数
+         */
+        private var RENDERING_COUNT = 0
+
+        /**
+         * 默认圆角半径为0
+         */
+        private const val DEFAULT_RADIUS = 0f
+
+        /**
+         * 默认边框宽度为0
+         */
+        private const val DEFAULT_BORDER_WIDTH = 0f
+        private val STOP_EXCEPTION = StopException()
+
+        /**
+         * 建造者模式，避免设置一个参数调用一次重新绘制
+         */
+        fun build(context: Context): Builder {
+            return Builder(context)
+        }
+    }
 }

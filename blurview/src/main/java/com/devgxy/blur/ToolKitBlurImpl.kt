@@ -1,20 +1,18 @@
-package com.devgxy.blur;
+package com.devgxy.blur
 
-import android.graphics.Bitmap;
+import android.graphics.Bitmap
+import com.google.android.renderscript.Toolkit.blur
 
-import com.google.android.renderscript.Toolkit;
+/**
+ * 使用ToolKit实现模糊功能
+ */
+class ToolKitBlurImpl : IBlur {
+    override var radius: Float = 1f
 
-
-public class ToolKitBlurImpl implements IBlur {
-    float radius = 1f;
-
-    @Override
-    public void release() {
-
+    override fun release() {
     }
 
-    @Override
-    public void blur(Bitmap input, Bitmap output) {
-        Toolkit.INSTANCE.blur(input, radius, output);
+    override fun blur(input: Bitmap, output: Bitmap) {
+        blur(input, radius, outputBitmap = output)
     }
 }
